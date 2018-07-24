@@ -89,7 +89,13 @@ func GetMysqlCreateTables(statements parser.DDStatements) (string, error) {
 				return "", err
 			}
 
-			defs = append(defs, fmt.Sprintf("  %s %s %s", col.Name, convertedType, col.Nullability))
+			defaultValue := ""
+			// TIMESTAMP doesn't allow implicit default value
+			if convertedType == "TIMESTAMP" && col.Nullability == "NOT NULL" {
+				defaultValue = "DEFAULT CURRENT_TIMESTAMP"
+			}
+
+			defs = append(defs, fmt.Sprintf("  %s %s %s %s", col.Name, convertedType, col.Nullability, defaultValue))
 		}
 
 		keyNames := make([]string, 0, len(ct.PrimaryKeys))
