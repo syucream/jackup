@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/syucream/jackup/src/parser"
+	"github.com/syucream/spar/src/types"
 )
 
 // MySQL requires fixed size index
@@ -55,7 +55,7 @@ func getMysqlType(t string) (string, error) {
 	return convertedType, nil
 }
 
-func getColumns(ct parser.CreateTableStatement) ([]string, error) {
+func getColumns(ct types.CreateTableStatement) ([]string, error) {
 	var cols []string
 
 	for _, col := range ct.Columns {
@@ -70,7 +70,7 @@ func getColumns(ct parser.CreateTableStatement) ([]string, error) {
 	return cols, nil
 }
 
-func getPrimaryKey(ct parser.CreateTableStatement) (string, error) {
+func getPrimaryKey(ct types.CreateTableStatement) (string, error) {
 	expectedLen := len(ct.PrimaryKeys)
 	keyNames := make([]string, 0, expectedLen)
 
@@ -94,13 +94,13 @@ func getPrimaryKey(ct parser.CreateTableStatement) (string, error) {
 	}
 }
 
-func getRelation(child parser.CreateTableStatement, maybeParents []parser.CreateTableStatement) (string, error) {
+func getRelation(child types.CreateTableStatement, maybeParents []types.CreateTableStatement) (string, error) {
 	// no relation
 	if child.Cluster.TableName == "" {
 		return "", nil
 	}
 
-	var parent *parser.CreateTableStatement
+	var parent *types.CreateTableStatement
 	for _, s := range maybeParents {
 		if child.Cluster.TableName == s.Id {
 			parent = &s
@@ -112,7 +112,7 @@ func getRelation(child parser.CreateTableStatement, maybeParents []parser.Create
 		return "", invalidInterleaveErr
 	}
 
-	var keyCol *parser.Column
+	var keyCol *types.Column
 	for _, cc := range child.Columns {
 		for _, pc := range parent.Columns {
 			if cc.Name == pc.Name && cc.Type == pc.Type {
@@ -129,7 +129,7 @@ func getRelation(child parser.CreateTableStatement, maybeParents []parser.Create
 	return fmt.Sprintf("  FOREIGN KEY (%s) REFERENCES %s(%s)", keyCol.Name, parent.Id, keyCol.Name), nil
 }
 
-func GetMysqlCreateTables(statements parser.DDStatements) (string, error) {
+func GetMysqlCreateTables(statements types.DDStatements) (string, error) {
 	converted := ""
 
 	for _, ct := range statements.CreateTables {

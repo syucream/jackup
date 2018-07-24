@@ -7,8 +7,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/syucream/jackup/src/parser"
 	"github.com/syucream/jackup/src/spanner2mysql"
+	"github.com/syucream/spar/src/parser"
 )
 
 func main() {
