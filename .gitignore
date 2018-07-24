@@ -16,3 +16,6 @@ y.*
 
 # Binary
 /jackup
+
+# gorelease
+dist
