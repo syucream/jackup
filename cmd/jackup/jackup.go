@@ -20,7 +20,6 @@ func main() {
 	var err error
 	if *pathToSql != "" {
 		// Try file option
-		fmt.Println(*pathToSql)
 		data, err = ioutil.ReadFile(*pathToSql)
 		if err != nil {
 			log.Fatal(err)
