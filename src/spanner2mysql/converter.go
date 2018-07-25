@@ -73,7 +73,7 @@ func getColumns(ct types.CreateTableStatement) ([]string, error) {
 		if convertedType == "TIMESTAMP" && col.Nullability == "NOT NULL" {
 			defaultValue = "DEFAULT CURRENT_TIMESTAMP"
 		}
-		cols = append(cols, fmt.Sprintf("  %s %s %s %s", col.Name, convertedType, col.Nullability, defaultValue))
+		cols = append(cols, fmt.Sprintf("  `%s` %s %s %s", col.Name, convertedType, col.Nullability, defaultValue))
 	}
 
 	return cols, nil
@@ -86,7 +86,7 @@ func getPrimaryKey(ct types.CreateTableStatement) (string, error) {
 	for _, pk := range ct.PrimaryKeys {
 		for _, col := range ct.Columns {
 			if col.Name == pk.Name {
-				kn := pk.Name
+				kn := fmt.Sprintf("`%s`", pk.Name)
 				mysqlType, err := getMysqlType(col.Type)
 				if err == nil && mysqlType == "TEXT" || mysqlType == "BLOB" {
 					kn += fmt.Sprintf("(%d)", pseudoKeyLength)
@@ -135,7 +135,7 @@ func getRelation(child types.CreateTableStatement, maybeParents []types.CreateTa
 		return "", invalidInterleaveErr
 	}
 
-	return fmt.Sprintf("  FOREIGN KEY (%s) REFERENCES %s(%s)", keyCol.Name, parent.Id, keyCol.Name), nil
+	return fmt.Sprintf("  FOREIGN KEY (`%s`) REFERENCES `%s` (`%s`)", keyCol.Name, parent.Id, keyCol.Name), nil
 }
 
 func GetMysqlCreateTables(statements types.DDStatements) (string, error) {
