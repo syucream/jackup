@@ -86,11 +86,18 @@ func getPrimaryKey(ct types.CreateTableStatement) (string, error) {
 	for _, pk := range ct.PrimaryKeys {
 		for _, col := range ct.Columns {
 			if col.Name == pk.Name {
+				// Check precondition
+				if col.Nullability != "NOT NULL" {
+					return "", invalidKeyErr
+				}
+
 				kn := fmt.Sprintf("`%s`", pk.Name)
 				mysqlType, err := getMysqlType(col.Type)
+
 				if err == nil && mysqlType == "TEXT" || mysqlType == "BLOB" {
 					kn += fmt.Sprintf("(%d)", pseudoKeyLength)
 				}
+
 				keyNames = append(keyNames, kn)
 			}
 		}
@@ -151,9 +158,13 @@ func GetMysqlCreateTables(statements types.DDStatements) (string, error) {
 
 		pk, err := getPrimaryKey(ct)
 		if err != nil {
-			return "", err
+			// Skip key error
+			if err != invalidKeyErr {
+				return "", err
+			}
+		} else {
+			defs = append(defs, pk)
 		}
-		defs = append(defs, pk)
 
 		// Convert interleave to foreign key
 		relation, err := getRelation(ct, statements.CreateTables)
