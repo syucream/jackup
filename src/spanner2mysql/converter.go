@@ -92,9 +92,7 @@ func getPrimaryKey(ct types.CreateTableStatement) (string, error) {
 				}
 
 				kn := fmt.Sprintf("`%s`", pk.Name)
-				mysqlType, err := getMysqlType(col.Type)
-
-				if err == nil && mysqlType == "TEXT" || mysqlType == "BLOB" {
+				if mt, err := getMysqlType(col.Type); err == nil && (mt == "TEXT" || mt == "BLOB") {
 					kn += fmt.Sprintf("(%d)", pseudoKeyLength)
 				}
 
@@ -142,6 +140,11 @@ func getRelation(child types.CreateTableStatement, maybeParents []types.CreateTa
 		return "", invalidInterleaveErr
 	}
 
+	// FOREIGN KEY TO TEXT or BLOB isn't supported
+	if mt, err := getMysqlType(keyCol.Type); err == nil || mt == "TEXT" || mt == "BLOB" {
+		return "", invalidKeyErr
+	}
+
 	return fmt.Sprintf("  FOREIGN KEY (`%s`) REFERENCES `%s` (`%s`)", keyCol.Name, parent.Id, keyCol.Name), nil
 }
 
@@ -169,9 +172,11 @@ func GetMysqlCreateTables(statements types.DDStatements) (string, error) {
 		// Convert interleave to foreign key
 		relation, err := getRelation(ct, statements.CreateTables)
 		if err != nil {
-			return "", err
-		}
-		if relation != "" {
+			// Skip key error
+			if err != invalidKeyErr {
+				return "", err
+			}
+		} else if relation != "" {
 			defs = append(defs, relation)
 		}
 
