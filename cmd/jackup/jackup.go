@@ -32,7 +32,10 @@ func main() {
 		}
 	}
 
-	stmts := parser.Parse(strings.NewReader(string(data)))
+	stmts, err := parser.Parse(strings.NewReader(string(data)))
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	mysqlStmts, err := spanner2mysql.GetMysqlCreateTables(stmts)
 	if err != nil {

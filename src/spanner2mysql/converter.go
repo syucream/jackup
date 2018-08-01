@@ -116,7 +116,7 @@ func getRelation(child types.CreateTableStatement, maybeParents []types.CreateTa
 
 	var parent *types.CreateTableStatement
 	for _, s := range maybeParents {
-		if child.Cluster.TableName == s.Id {
+		if child.Cluster.TableName == s.TableName {
 			parent = &s
 			break
 		}
@@ -145,14 +145,14 @@ func getRelation(child types.CreateTableStatement, maybeParents []types.CreateTa
 		return "", invalidKeyErr
 	}
 
-	return fmt.Sprintf("  FOREIGN KEY (`%s`) REFERENCES `%s` (`%s`)", keyCol.Name, parent.Id, keyCol.Name), nil
+	return fmt.Sprintf("  FOREIGN KEY (`%s`) REFERENCES `%s` (`%s`)", keyCol.Name, parent.TableName, keyCol.Name), nil
 }
 
-func GetMysqlCreateTables(statements types.DDStatements) (string, error) {
+func GetMysqlCreateTables(statements *types.DDStatements) (string, error) {
 	converted := ""
 
 	for _, ct := range statements.CreateTables {
-		converted += fmt.Sprintf("CREATE TABLE %s (\n", ct.Statement.Id)
+		converted += fmt.Sprintf("CREATE TABLE %s (\n", ct.TableName)
 
 		defs, err := getColumns(ct)
 		if err != nil {
