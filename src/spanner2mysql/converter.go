@@ -148,6 +148,28 @@ func getRelation(child types.CreateTableStatement, maybeParents []types.CreateTa
 	return fmt.Sprintf("  FOREIGN KEY (`%s`) REFERENCES `%s` (`%s`)", keyCol.Name, parent.TableName, keyCol.Name), nil
 }
 
+func getIndexes(table types.CreateTableStatement, indexes []types.CreateIndexStatement) []string {
+	var strIndexes []string
+
+	for _, i := range indexes {
+		if table.TableName == i.TableName {
+			keys := make([]string, 0, len(i.Keys))
+			for _, k := range i.Keys {
+				keys = append(keys, fmt.Sprintf("`%s`", k.Name))
+			}
+
+			if i.Unique != "UNIQUE" {
+				strIndexes = append(strIndexes, fmt.Sprintf("  INDEX `%s` (%s)", i.IndexName, strings.Join(keys, ", ")))
+			} else {
+				strIndexes = append(strIndexes, fmt.Sprintf("  UNIQUE (%s)", strings.Join(keys, ", ")))
+			}
+
+		}
+	}
+
+	return strIndexes
+}
+
 func GetMysqlCreateTables(statements *types.DDStatements) (string, error) {
 	converted := ""
 
@@ -179,6 +201,9 @@ func GetMysqlCreateTables(statements *types.DDStatements) (string, error) {
 		} else if relation != "" {
 			defs = append(defs, relation)
 		}
+
+		// Convert CreateIndex'es to INDEX(...) or UNIQUE(...)
+		defs = append(defs, getIndexes(ct, statements.CreateIndexes)...)
 
 		converted += strings.Join(defs, ",\n") + "\n);\n"
 	}
