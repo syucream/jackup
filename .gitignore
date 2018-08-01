@@ -22,3 +22,6 @@ dist
 
 # dep
 vendor
+
+# IDEA
+.idea
