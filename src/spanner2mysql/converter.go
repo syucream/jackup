@@ -31,8 +31,9 @@ var (
 )
 
 type Spanner2MysqlConverter struct {
-	Strict             bool
-	AllowConvertString bool
+	Strict               bool
+	AllowConvertString   bool
+	AllowShotenIndexName bool
 }
 
 func (c *Spanner2MysqlConverter) getMysqlType(t types.ColumnType) (string, error) {
@@ -161,7 +162,11 @@ func (c *Spanner2MysqlConverter) getIndexes(table types.CreateTableStatement, in
 			}
 
 			if i.Unique {
-				strIndexes = append(strIndexes, fmt.Sprintf("  INDEX `%s` (%s)", i.IndexName, strings.Join(keys, ", ")))
+				iname := i.IndexName
+				if c.AllowShotenIndexName && len(iname) > 255 {
+					iname = ""
+				}
+				strIndexes = append(strIndexes, fmt.Sprintf("  INDEX `%s` (%s)", iname, strings.Join(keys, ", ")))
 			} else {
 				strIndexes = append(strIndexes, fmt.Sprintf("  UNIQUE (%s)", strings.Join(keys, ", ")))
 			}

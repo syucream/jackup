@@ -37,7 +37,11 @@ func main() {
 		log.Fatal(err)
 	}
 
-	converter := spanner2mysql.Spanner2MysqlConverter{}
+	converter := spanner2mysql.Spanner2MysqlConverter{
+		AllowConvertString:   true,
+		AllowShotenIndexName: true,
+	}
+
 	mysqlStmts, err := converter.Convert(stmts)
 	if err != nil {
 		log.Fatal(err)
