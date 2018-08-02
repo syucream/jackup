@@ -9,7 +9,7 @@
     "src/parser",
     "src/types"
   ]
-  revision = "fbc84d8eb5a57e85c4e279acb04615ac9c4e0209"
+  revision = "8ed53517762a0cb9f4acb80531581931dc3f8456"
 
 [solve-meta]
   analyzer-name = "dep"

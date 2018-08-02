@@ -19,37 +19,33 @@ var (
 	invalidSpannerErr    = fmt.Errorf("Invalid spanner type")
 	invalidKeyErr        = fmt.Errorf("Invalid key")
 
-	toMysqlType = map[string]string{
-		"BOOL":      "TINYINT(1)",
-		"INT64":     "BIGINT",
-		"FLOAT64":   "DOUBLE",
-		"STRING":    "VARCHAR",
-		"BYTES":     "BLOB",
-		"DATE":      "DATE",
-		"TIMESTAMP": "TIMESTAMP",
+	toMysqlType = map[types.ScalarColumnTypeTag]string{
+		types.Bool:      "TINYINT(1)",
+		types.Int64:     "BIGINT",
+		types.Float64:   "DOUBLE",
+		types.String:    "VARCHAR",
+		types.Bytes:     "BLOB",
+		types.Date:      "DATE",
+		types.Timestamp: "TIMESTAMP",
 	}
 )
 
-func getMysqlType(t string) (string, error) {
-	origType := t
+type Spanner2MysqlConverter struct {
+	Strict             bool
+	AllowConvertString bool
+}
 
-	index := strings.Index(t, "(")
-	if index != -1 {
-		// Either STRING or BYTES
-		origType = t[:index]
-	}
-
+func (c *Spanner2MysqlConverter) getMysqlType(t types.ColumnType) (string, error) {
 	convertedType := ""
-	if v, ok := toMysqlType[origType]; ok {
-		convertedType = v
 
+	if v, ok := toMysqlType[t.TypeTag]; ok {
+		convertedType = v
 		// Replace too big VARCHAR to TEXT or append length attribute for VARCHAR
-		// TODO more strict check
-		if convertedType == "VARCHAR" {
-			if t[index:] == "(MAX)" {
+		if c.AllowConvertString && t.TypeTag == types.String {
+			if t.Length > 256 {
 				convertedType = "TEXT"
 			} else {
-				convertedType += t[index:]
+				convertedType += fmt.Sprintf("%d", t.Length)
 			}
 		}
 	} else {
@@ -59,27 +55,33 @@ func getMysqlType(t string) (string, error) {
 	return convertedType, nil
 }
 
-func getColumns(ct types.CreateTableStatement) ([]string, error) {
+func (c *Spanner2MysqlConverter) getColumns(ct types.CreateTableStatement) ([]string, error) {
 	var cols []string
 
 	for _, col := range ct.Columns {
-		convertedType, err := getMysqlType(col.Type)
+		convertedType, err := c.getMysqlType(col.Type)
 		if err != nil {
 			return []string{}, err
 		}
 
 		defaultValue := ""
 		// TIMESTAMP doesn't allow implicit default value
-		if convertedType == "TIMESTAMP" && col.Nullability == "NOT NULL" {
+		if convertedType == "TIMESTAMP" && col.NotNull {
 			defaultValue = "DEFAULT CURRENT_TIMESTAMP"
 		}
-		cols = append(cols, fmt.Sprintf("  `%s` %s %s %s", col.Name, convertedType, col.Nullability, defaultValue))
+
+		nullability := "NULL"
+		if col.NotNull {
+			nullability = "NOT NULL"
+		}
+
+		cols = append(cols, fmt.Sprintf("  `%s` %s %s %s", col.Name, convertedType, nullability, defaultValue))
 	}
 
 	return cols, nil
 }
 
-func getPrimaryKey(ct types.CreateTableStatement) (string, error) {
+func (c *Spanner2MysqlConverter) getPrimaryKey(ct types.CreateTableStatement) (string, error) {
 	expectedLen := len(ct.PrimaryKeys)
 	keyNames := make([]string, 0, expectedLen)
 
@@ -87,12 +89,12 @@ func getPrimaryKey(ct types.CreateTableStatement) (string, error) {
 		for _, col := range ct.Columns {
 			if col.Name == pk.Name {
 				// Check precondition
-				if col.Nullability != "NOT NULL" {
+				if !col.NotNull {
 					return "", invalidKeyErr
 				}
 
 				kn := fmt.Sprintf("`%s`", pk.Name)
-				if mt, err := getMysqlType(col.Type); err == nil && (mt == "TEXT" || mt == "BLOB") {
+				if mt, err := c.getMysqlType(col.Type); err == nil && (mt == "TEXT" || mt == "BLOB") {
 					kn += fmt.Sprintf("(%d)", pseudoKeyLength)
 				}
 
@@ -108,7 +110,7 @@ func getPrimaryKey(ct types.CreateTableStatement) (string, error) {
 	}
 }
 
-func getRelation(child types.CreateTableStatement, maybeParents []types.CreateTableStatement) (string, error) {
+func (c *Spanner2MysqlConverter) getRelation(child types.CreateTableStatement, maybeParents []types.CreateTableStatement) (string, error) {
 	// no relation
 	if child.Cluster.TableName == "" {
 		return "", nil
@@ -141,14 +143,14 @@ func getRelation(child types.CreateTableStatement, maybeParents []types.CreateTa
 	}
 
 	// FOREIGN KEY TO TEXT or BLOB isn't supported
-	if mt, err := getMysqlType(keyCol.Type); err == nil || mt == "TEXT" || mt == "BLOB" {
+	if mt, err := c.getMysqlType(keyCol.Type); err == nil || mt == "TEXT" || mt == "BLOB" {
 		return "", invalidKeyErr
 	}
 
 	return fmt.Sprintf("  FOREIGN KEY (`%s`) REFERENCES `%s` (`%s`)", keyCol.Name, parent.TableName, keyCol.Name), nil
 }
 
-func getIndexes(table types.CreateTableStatement, indexes []types.CreateIndexStatement) []string {
+func (c *Spanner2MysqlConverter) getIndexes(table types.CreateTableStatement, indexes []types.CreateIndexStatement) []string {
 	var strIndexes []string
 
 	for _, i := range indexes {
@@ -158,7 +160,7 @@ func getIndexes(table types.CreateTableStatement, indexes []types.CreateIndexSta
 				keys = append(keys, fmt.Sprintf("`%s`", k.Name))
 			}
 
-			if i.Unique != "UNIQUE" {
+			if i.Unique {
 				strIndexes = append(strIndexes, fmt.Sprintf("  INDEX `%s` (%s)", i.IndexName, strings.Join(keys, ", ")))
 			} else {
 				strIndexes = append(strIndexes, fmt.Sprintf("  UNIQUE (%s)", strings.Join(keys, ", ")))
@@ -170,20 +172,19 @@ func getIndexes(table types.CreateTableStatement, indexes []types.CreateIndexSta
 	return strIndexes
 }
 
-func GetMysqlCreateTables(statements *types.DDStatements) (string, error) {
+func (c *Spanner2MysqlConverter) Convert(statements *types.DDStatements) (string, error) {
 	converted := ""
 
 	for _, ct := range statements.CreateTables {
 		converted += fmt.Sprintf("CREATE TABLE %s (\n", ct.TableName)
 
-		defs, err := getColumns(ct)
+		defs, err := c.getColumns(ct)
 		if err != nil {
 			return "", err
 		}
 
-		pk, err := getPrimaryKey(ct)
+		pk, err := c.getPrimaryKey(ct)
 		if err != nil {
-			// Skip key error
 			if err != invalidKeyErr {
 				return "", err
 			}
@@ -192,9 +193,8 @@ func GetMysqlCreateTables(statements *types.DDStatements) (string, error) {
 		}
 
 		// Convert interleave to foreign key
-		relation, err := getRelation(ct, statements.CreateTables)
+		relation, err := c.getRelation(ct, statements.CreateTables)
 		if err != nil {
-			// Skip key error
 			if err != invalidKeyErr {
 				return "", err
 			}
@@ -203,7 +203,7 @@ func GetMysqlCreateTables(statements *types.DDStatements) (string, error) {
 		}
 
 		// Convert CreateIndex'es to INDEX(...) or UNIQUE(...)
-		defs = append(defs, getIndexes(ct, statements.CreateIndexes)...)
+		defs = append(defs, c.getIndexes(ct, statements.CreateIndexes)...)
 
 		converted += strings.Join(defs, ",\n") + "\n);\n"
 	}

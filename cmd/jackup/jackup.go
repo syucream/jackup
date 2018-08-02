@@ -37,7 +37,8 @@ func main() {
 		log.Fatal(err)
 	}
 
-	mysqlStmts, err := spanner2mysql.GetMysqlCreateTables(stmts)
+	converter := spanner2mysql.Spanner2MysqlConverter{}
+	mysqlStmts, err := converter.Convert(stmts)
 	if err != nil {
 		log.Fatal(err)
 	}
