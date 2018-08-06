@@ -13,7 +13,10 @@ import (
 )
 
 func main() {
-	pathToSql := flag.String("f", "", "path to Spanner DDL")
+	pathToSql := flag.String("f", "", "path to DDL .sql file")
+	strictFlag := flag.Bool("strict", false, "Strict check")
+	allowConvertStringFlag := flag.Bool("allow-convert-string", true, "Convert between long string")
+	removeIndexNameFlag := flag.Bool("remove-index-name", true, "Remove long index name")
 	flag.Parse()
 
 	var data []byte
@@ -38,8 +41,9 @@ func main() {
 	}
 
 	converter := spanner2mysql.Spanner2MysqlConverter{
-		AllowConvertString:   true,
-		AllowShotenIndexName: true,
+		Strict:             *strictFlag,
+		AllowConvertString: *allowConvertStringFlag,
+		RemoveIndexName:    *removeIndexNameFlag,
 	}
 
 	mysqlStmts, err := converter.Convert(stmts)
