@@ -160,7 +160,7 @@ func (c *Spanner2MysqlConverter) getIndexes(table types.CreateTableStatement, in
 			for _, k := range i.Keys {
 				for _, keyCol := range table.Columns {
 					if keyCol.Name == k.Name {
-						if mt, err := c.getMysqlType(keyCol.Type); err == nil || mt == "TEXT" || mt == "BLOB" {
+						if mt, err := c.getMysqlType(keyCol.Type); err == nil && (mt == "TEXT" || mt == "BLOB") {
 							keys = append(keys, fmt.Sprintf("`%s`(%d)", k.Name, pseudoKeyLength))
 						} else {
 							keys = append(keys, fmt.Sprintf("`%s`", k.Name))
