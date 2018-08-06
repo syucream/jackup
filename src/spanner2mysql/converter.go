@@ -46,7 +46,7 @@ func (c *Spanner2MysqlConverter) getMysqlType(t types.ColumnType) (string, error
 			if t.Length > 256 {
 				convertedType = "TEXT"
 			} else {
-				convertedType += fmt.Sprintf("%d", t.Length)
+				convertedType += fmt.Sprintf("(%d)", t.Length)
 			}
 		}
 	} else {
