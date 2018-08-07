@@ -36,6 +36,7 @@ type Spanner2MysqlConverter struct {
 	RemoveIndexName    bool
 }
 
+// isLargeType judges the type is large(and variant) type or not.
 func isLargeType(ct types.ColumnType) bool {
 	return (ct.TypeTag == types.String && ct.Length > maxKeyLength) || ct.TypeTag == types.Bytes
 }
@@ -190,17 +191,20 @@ func (c *Spanner2MysqlConverter) getIndexes(table types.CreateTableStatement, in
 	return strIndexes
 }
 
+// Convert returns MySQL DDL from Spanner DDL.
 func (c *Spanner2MysqlConverter) Convert(statements *types.DDStatements) (string, error) {
 	converted := ""
 
 	for _, ct := range statements.CreateTables {
 		converted += fmt.Sprintf("CREATE TABLE %s (\n", ct.TableName)
 
+		// Convert columns
 		defs, err := c.getColumns(ct)
 		if err != nil {
 			return "", err
 		}
 
+		// Convert primary key
 		pk, err := c.getPrimaryKey(ct)
 		if err != nil {
 			if err != invalidKeyErr {
