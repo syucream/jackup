@@ -36,6 +36,10 @@ type Spanner2MysqlConverter struct {
 	RemoveIndexName    bool
 }
 
+func isLargeType(mt string) bool {
+	return mt == "TEXT" || mt == "BLOB"
+}
+
 func (c *Spanner2MysqlConverter) getMysqlType(t types.ColumnType) (string, error) {
 	convertedType := ""
 
@@ -95,7 +99,7 @@ func (c *Spanner2MysqlConverter) getPrimaryKey(ct types.CreateTableStatement) (s
 				}
 
 				kn := fmt.Sprintf("`%s`", pk.Name)
-				if mt, err := c.getMysqlType(col.Type); err == nil && (mt == "TEXT" || mt == "BLOB") {
+				if mt, err := c.getMysqlType(col.Type); err == nil && isLargeType(mt) {
 					kn += fmt.Sprintf("(%d)", maxKeyLength)
 				}
 
@@ -144,7 +148,7 @@ func (c *Spanner2MysqlConverter) getRelation(child types.CreateTableStatement, m
 	}
 
 	// FOREIGN KEY TO TEXT or BLOB isn't supported
-	if mt, err := c.getMysqlType(keyCol.Type); err == nil || mt == "TEXT" || mt == "BLOB" {
+	if mt, err := c.getMysqlType(keyCol.Type); err == nil || isLargeType(mt) {
 		return "", invalidKeyErr
 	}
 
@@ -160,7 +164,7 @@ func (c *Spanner2MysqlConverter) getIndexes(table types.CreateTableStatement, in
 			for _, k := range i.Keys {
 				for _, keyCol := range table.Columns {
 					if keyCol.Name == k.Name {
-						if mt, err := c.getMysqlType(keyCol.Type); err == nil && (mt == "TEXT" || mt == "BLOB") {
+						if mt, err := c.getMysqlType(keyCol.Type); err == nil && isLargeType(mt) {
 							keys = append(keys, fmt.Sprintf("`%s`(%d)", k.Name, maxKeyLength))
 						} else {
 							keys = append(keys, fmt.Sprintf("`%s`", k.Name))
