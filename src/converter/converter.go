@@ -1,4 +1,4 @@
-package types
+package converter
 
 import "github.com/syucream/spar/src/types"
 

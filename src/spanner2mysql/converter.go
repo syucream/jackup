@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/syucream/spar/src/types"
+	"github.com/syucream/jackup/src/converter"
 )
 
 const (
@@ -31,9 +32,11 @@ var (
 )
 
 type Spanner2MysqlConverter struct {
-	Strict             bool
-	AllowConvertString bool
-	RemoveIndexName    bool
+	config converter.Config
+}
+
+func NewSpanner2MysqlConverter(c converter.Config) converter.Converter {
+	return &Spanner2MysqlConverter{config: c}
 }
 
 // isLargeType judges the type is large(and variant) type or not.
@@ -47,7 +50,7 @@ func (c *Spanner2MysqlConverter) getMysqlType(t types.ColumnType) (string, error
 	if v, ok := toMysqlType[t.TypeTag]; ok {
 		convertedType = v
 		// Replace too big VARCHAR to TEXT or append length attribute for VARCHAR
-		if c.AllowConvertString && t.TypeTag == types.String {
+		if c.config.AllowConvertString && t.TypeTag == types.String {
 			if t.Length > maxKeyLength {
 				convertedType = "TEXT"
 			} else {
@@ -177,7 +180,7 @@ func (c *Spanner2MysqlConverter) getIndexes(table types.CreateTableStatement, in
 
 			if i.Unique {
 				iname := fmt.Sprintf("`%s`", i.IndexName)
-				if c.RemoveIndexName {
+				if c.config.RemoveIndexName {
 					iname = ""
 				}
 				strIndexes = append(strIndexes, fmt.Sprintf("  INDEX %s (%s)", iname, strings.Join(keys, ", ")))
